@@ -651,11 +651,16 @@ class Profile(Object):
                     call[outevent] = ratio(call[inevent], self[inevent])
         self[outevent] = 1.0
 
-    def prune(self, node_thres, edge_thres):
+    def prune(self, node_thres, edge_thres, root=None, leaf=None):
         """Prune the profile"""
+
+        keep_functions = set()
 
         # compute the prune ratios
         for function in compat_itervalues(self.functions):
+            if function.name == root or function.name == leaf:
+                keep_functions.add(function.id)
+
             try:
                 function.weight = function[TOTAL_TIME_RATIO]
             except UndefinedEvent:
@@ -663,6 +668,12 @@ class Profile(Object):
 
             for call in compat_itervalues(function.calls):
                 callee = self.functions[call.callee_id]
+                if callee.name == leaf:
+                    keep_functions.add(function.id)
+                    continue
+                if function.name == root:
+                    keep_functions.add(callee.id)
+                    continue
 
                 if TOTAL_TIME_RATIO in call:
                     # handle exact cases first
@@ -676,10 +687,11 @@ class Profile(Object):
 
         # prune the nodes
         for function_id in compat_keys(self.functions):
-            function = self.functions[function_id]
-            if function.weight is not None:
-                if function.weight < node_thres:
-                    del self.functions[function_id]
+            if function_id not in keep_functions:
+                function = self.functions[function_id]
+                if function.weight is not None:
+                    if function.weight < node_thres:
+                        del self.functions[function_id]
 
         # prune the egdes
         for function in compat_itervalues(self.functions):
@@ -3209,7 +3221,7 @@ def main():
         dot.show_function_events.append(SAMPLES)
 
     profile = profile
-    profile.prune(options.node_thres/100.0, options.edge_thres/100.0)
+    profile.prune(options.node_thres/100.0, options.edge_thres/100.0, root=options.root, leaf=options.leaf)
 
     if options.root:
         rootId = profile.getFunctionId(options.root)
