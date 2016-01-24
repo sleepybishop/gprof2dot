@@ -312,12 +312,15 @@ class Profile(Object):
         """Find cycles using Tarjan's strongly connected components algorithm."""
 
         # Apply the Tarjan's algorithm successively until all functions are visited
-        visited = set()
+        stack = []
+        order = 0
         for function in compat_itervalues(self.functions):
-            if function not in visited:
-                self._tarjan(function, 0, [], {}, {}, visited)
+            if not hasattr(function, '_tarjan_order'):
+                order = self._tarjan(function, order, stack)
         cycles = []
         for function in compat_itervalues(self.functions):
+            delattr(function, '_tarjan_order')
+            delattr(function, '_tarjan_lowlink')
             if function.cycle is not None and function.cycle not in cycles:
                 cycles.append(function.cycle)
         self.cycles = cycles
@@ -374,31 +377,31 @@ class Profile(Object):
                 return f
         return False
     
-    def _tarjan(self, function, order, stack, orders, lowlinks, visited):
+    def _tarjan(self, function, order, stack):
         """Tarjan's strongly connected components algorithm.
 
         See also:
         - http://en.wikipedia.org/wiki/Tarjan's_strongly_connected_components_algorithm
         """
 
-        visited.add(function)
-        orders[function] = order
-        lowlinks[function] = order
+        function._tarjan_order = order
+        function._tarjan_lowlink = order
         order += 1
         pos = len(stack)
         stack.append(function)
+        function._tarjan_onstack = True
         for call in compat_itervalues(function.calls):
             callee = self.functions[call.callee_id]
-            # TODO: use a set to optimize lookup
-            if callee not in orders:
-                order = self._tarjan(callee, order, stack, orders, lowlinks, visited)
-                lowlinks[function] = min(lowlinks[function], lowlinks[callee])
-            elif callee in stack:
-                lowlinks[function] = min(lowlinks[function], orders[callee])
-        if lowlinks[function] == orders[function]:
+            if not hasattr(callee, '_tarjan_order'):
+                order = self._tarjan(callee, order, stack)
+                function._tarjan_lowlink = min(function._tarjan_lowlink, callee._tarjan_lowlink)
+            elif getattr(callee, '_tarjan_onstack', False):
+                function._tarjan_lowlink = min(function._tarjan_lowlink, callee._tarjan_order)
+        if function._tarjan_lowlink == function._tarjan_order:
             # Strongly connected component found
             members = stack[pos:]
             del stack[pos:]
+            map(lambda m:delattr(m, '_tarjan_onstack'), members)
             if len(members) > 1:
                 cycle = Cycle()
                 for member in members:
