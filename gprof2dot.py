@@ -746,7 +746,7 @@ class Profile(Object):
             # apply rescaled weights for coloriung
             for function in compat_itervalues(self.functions):
                 try:
-                    function.weight = function[TIME_RATIO] / max_ratio
+                    function.weight = min(function[TIME_RATIO] / max_ratio,0.999)
                 except (ZeroDivisionError, UndefinedEvent):
                     pass
     
@@ -2773,33 +2773,29 @@ formats = {
 class Theme:
 
     def __init__(self, 
-            bgcolor = (0.0, 0.0, 1.0),
-            mincolor = (0.0, 0.0, 0.0),
-            maxcolor = (0.0, 0.0, 1.0),
+            bgcolor = "#eeeeee",
+            colormap = [],
             fontname = "Arial",
             fontcolor = "white",
-            nodestyle = "filled",
+            nodestyle = "rounded,filled",
+            nodeshape = "box",
             minfontsize = 10.0,
             maxfontsize = 10.0,
             minpenwidth = 0.5,
-            maxpenwidth = 4.0,
-            gamma = 2.2,
-            skew = 1.0):
+            maxpenwidth = 4.0):
         self.bgcolor = bgcolor
-        self.mincolor = mincolor
-        self.maxcolor = maxcolor
+        self.colormap = colormap
         self.fontname = fontname
         self.fontcolor = fontcolor
         self.nodestyle = nodestyle
+        self.nodeshape = nodeshape
         self.minfontsize = minfontsize
         self.maxfontsize = maxfontsize
         self.minpenwidth = minpenwidth
         self.maxpenwidth = maxpenwidth
-        self.gamma = gamma
-        self.skew = skew
 
     def graph_bgcolor(self):
-        return self.hsl_to_rgb(*self.bgcolor)
+        return self.bgcolor
 
     def graph_fontname(self):
         return self.fontname
@@ -2814,13 +2810,16 @@ class Theme:
         return self.color(weight)
 
     def node_fgcolor(self, weight):
-        if self.nodestyle == "filled":
-            return self.graph_bgcolor()
+        if self.nodestyle == "rounded,filled":
+            return "#ffffff"
         else:
             return self.color(weight)
 
     def node_fontsize(self, weight):
         return self.fontsize(weight)
+
+    def node_shape(self):
+        return self.nodeshape
 
     def node_style(self):
         return self.nodestyle
@@ -2841,103 +2840,76 @@ class Theme:
         return max(weight**2 * self.maxfontsize, self.minfontsize)
 
     def color(self, weight):
-        weight = min(max(weight, 0.0), 1.0)
+        weight = int(min(max(weight, 0.0), 1.0) * 16);
     
-        hmin, smin, lmin = self.mincolor
-        hmax, smax, lmax = self.maxcolor
-        
-        if self.skew < 0:
-            raise ValueError("Skew must be greater than 0")
-        elif self.skew == 1.0:
-            h = hmin + weight*(hmax - hmin)
-            s = smin + weight*(smax - smin)
-            l = lmin + weight*(lmax - lmin)
-        else:
-            base = self.skew
-            h = hmin + ((hmax-hmin)*(-1.0 + (base ** weight)) / (base - 1.0))
-            s = smin + ((smax-smin)*(-1.0 + (base ** weight)) / (base - 1.0))
-            l = lmin + ((lmax-lmin)*(-1.0 + (base ** weight)) / (base - 1.0))
-
-        return self.hsl_to_rgb(h, s, l)
-
-    def hsl_to_rgb(self, h, s, l):
-        """Convert a color from HSL color-model to RGB.
-
-        See also:
-        - http://www.w3.org/TR/css3-color/#hsl-color
-        """
-
-        h = h % 1.0
-        s = min(max(s, 0.0), 1.0)
-        l = min(max(l, 0.0), 1.0)
-
-        if l <= 0.5:
-            m2 = l*(s + 1.0)
-        else:
-            m2 = l + s - l*s
-        m1 = l*2.0 - m2
-        r = self._hue_to_rgb(m1, m2, h + 1.0/3.0)
-        g = self._hue_to_rgb(m1, m2, h)
-        b = self._hue_to_rgb(m1, m2, h - 1.0/3.0)
-
-        # Apply gamma correction
-        r **= self.gamma
-        g **= self.gamma
-        b **= self.gamma
-
-        return (r, g, b)
-
-    def _hue_to_rgb(self, m1, m2, h):
-        if h < 0.0:
-            h += 1.0
-        elif h > 1.0:
-            h -= 1.0
-        if h*6 < 1.0:
-            return m1 + (m2 - m1)*h*6.0
-        elif h*2 < 1.0:
-            return m2
-        elif h*3 < 2.0:
-            return m1 + (m2 - m1)*(2.0/3.0 - h)*6.0
-        else:
-            return m1
+         
+        return self.colormap[weight]
 
 
 TEMPERATURE_COLORMAP = Theme(
-    mincolor = (2.0/3.0, 0.80, 0.25), # dark blue
-    maxcolor = (0.0, 1.0, 0.5), # satured red
-    gamma = 1.0
+    nodestyle = "rounded,filled",
+    nodeshape = "Mrecord",
+    colormap = [
+        '#000080', '#0000a4', '#0019cc', '#0059cc',
+        '#0098cc', '#0fbacc', '#1dccb9', '#2ccc96',
+        '#62cc4b', '#97cc00', '#cbcc00', '#ffcc00',
+        '#ffcc00', '#ff6f00', '#ff3800', '#ff0000']
 )
 
 PINK_COLORMAP = Theme(
-    mincolor = (0.0, 1.0, 0.90), # pink
-    maxcolor = (0.0, 1.0, 0.5), # satured red
+    nodestyle = "rounded,filled",
+    nodeshape = "Mrecord",
+    colormap = [
+        '#d18977', '#cd7d69', '#c76a54', '#c0573f',
+        '#bb4833', '#b63a27', '#b12b1b', '#a5231c',
+        '#9a1c1c', '#8e141d', '#80131c', '#82121c',
+        '#84111b', '#860e18', '#880c15', '#8a0912']
 )
 
 GRAY_COLORMAP = Theme(
-    mincolor = (0.0, 0.0, 0.85), # light gray
-    maxcolor = (0.0, 0.0, 0.0), # black
-)
+    nodestyle = "rounded,filled",
+    nodeshape = "Mrecord",
+    colormap = [
+        '#b6b6b6', '#aaaaaa', '#9e9e9e', '#929292',
+        '#868686', '#797979', '#6d6d6d', '#616161',
+        '#555555', '#494949', '#3d3d3d', '#313131',
+        '#242424', '#181818','#0c0c0c', '#000000' ]
+    )
 
 BW_COLORMAP = Theme(
+    nodestyle = "rounded,filled",
+    nodeshape = "Mrecord",
+    colormap = ["#020202"] * 16,
     minfontsize = 8.0,
     maxfontsize = 24.0,
-    mincolor = (0.0, 0.0, 0.0), # black
-    maxcolor = (0.0, 0.0, 0.0), # black
     minpenwidth = 0.1,
     maxpenwidth = 8.0,
 )
 
 PRINT_COLORMAP = Theme(
+    nodestyle = "rounded,solid",
+    nodeshape = "Mrecord",
+    colormap = ["#020202"] * 16,
     minfontsize = 18.0,
     maxfontsize = 30.0,
     fontcolor = "black",
-    nodestyle = "solid",
-    mincolor = (0.0, 0.0, 0.0), # black
-    maxcolor = (0.0, 0.0, 0.0), # black
     minpenwidth = 0.1,
     maxpenwidth = 8.0,
 )
 
+CUSTOM_COLORMAP = Theme(
+    fontname = "monofur",
+    minfontsize = 14.0,
+    minpenwidth = 2,
+    bgcolor = "#222222",
+    nodestyle = "rounded,filled",
+    nodeshape = "Mrecord",
+    colormap = [
+        '#0e0824', '#1c1044', '#361160', '#4f127b',
+        '#681c7e', '#812581', '#922b7f', '#a4307c',
+        '#b5367a', '#cd436f', '#e55064', '#f06c63',
+        '#f08c61', '#f0ac74', '#f0cc87', '#f0cca3']
+)
 
 themes = {
     "color": TEMPERATURE_COLORMAP,
@@ -2945,6 +2917,7 @@ themes = {
     "gray": GRAY_COLORMAP,
     "bw": BW_COLORMAP,
     "print": PRINT_COLORMAP,
+    "custom": CUSTOM_COLORMAP
 }
 
 
@@ -2996,18 +2969,21 @@ class DotWriter:
 
         fontname = theme.graph_fontname()
         fontcolor = theme.graph_fontcolor()
+        graph_bgcolor = theme.graph_bgcolor();
         nodestyle = theme.node_style()
+        nodeshape = theme.node_shape()
 
-        self.attr('graph', fontname=fontname, ranksep=0.25, nodesep=0.125)
-        self.attr('node', fontname=fontname, shape="box", style=nodestyle, fontcolor=fontcolor, width=0, height=0)
+        self.attr('graph', fontname=fontname, ranksep=0.25, nodesep=0.125, bgcolor=graph_bgcolor)
+        self.attr('node', fontname=fontname, shape=nodeshape, style=nodestyle, fontcolor=fontcolor, width=0, height=0)
         self.attr('edge', fontname=fontname)
 
         for _, function in sorted_iteritems(profile.functions):
-            labels = []
+            labels = ["{{"]
             if function.process is not None:
                 labels.append(function.process)
             if function.module is not None:
                 labels.append(function.module)
+            labels.append("|")
 
             if self.strip:
                 function_name = function.stripped_name()
@@ -3025,11 +3001,13 @@ class DotWriter:
             if self.wrap:
                 function_name = self.wrap_function_name(function_name)
             labels.append(function_name)
+            labels.append("}|{")
 
             for event in self.show_function_events:
                 if event in function.events:
                     label = event.format(function[event])
                     labels.append(label)
+                    labels.append("|")
             if function.called is not None:
                 labels.append("%u%s" % (function.called, MULTIPLICATION_SIGN))
 
@@ -3037,12 +3015,14 @@ class DotWriter:
                 weight = function.weight
             else:
                 weight = 0.0
+            labels.append("}}")
 
-            label = '\n'.join(labels)
+            label = "".join(labels)
+            #label=\"{{ node: %d} | {%d | %d | {%d | %d} }}\"
             self.node(function.id, 
                 label = label, 
-                color = self.color(theme.node_bgcolor(weight)), 
-                fontcolor = self.color(theme.node_fgcolor(weight)), 
+                color = theme.node_bgcolor(weight), 
+                fontcolor = theme.node_fgcolor(weight), 
                 fontsize = "%.2f" % theme.node_fontsize(weight),
                 tooltip = function.filename,
             )
@@ -3067,8 +3047,8 @@ class DotWriter:
 
                 self.edge(function.id, call.callee_id, 
                     label = label, 
-                    color = self.color(theme.edge_color(weight)), 
-                    fontcolor = self.color(theme.edge_color(weight)),
+                    color = theme.edge_color(weight), 
+                    fontcolor = theme.edge_color(weight),
                     fontsize = "%.2f" % theme.edge_fontsize(weight), 
                     penwidth = "%.2f" % theme.edge_penwidth(weight), 
                     labeldistance = "%.2f" % theme.edge_penwidth(weight), 
@@ -3131,18 +3111,6 @@ class DotWriter:
         else:
             raise TypeError
         self.write(s)
-
-    def color(self, rgb):
-        r, g, b = rgb
-
-        def float2int(f):
-            if f <= 0.0:
-                return 0
-            if f >= 1.0:
-                return 255
-            return int(255.0*f + 0.5)
-
-        return "#" + "".join(["%02x" % float2int(c) for c in (r, g, b)])
 
     def escape(self, s):
         if not PYTHON_3:
@@ -3260,12 +3228,7 @@ def main():
         '--depth',
         type="int",
         dest="depth", default=-1,
-        help="prune call graph to show only descendants or ancestors until specified depth")
-    # add a new option to control skew of the colorization curve
-    optparser.add_option(
-        '--skew',
-        type="float", dest="theme_skew", default=1.0,
-        help="skew the colorization curve.  Values < 1.0 give more variety to lower percentages.  Values > 1.0 give less variety to lower percentages")
+        help="prune call graph to show only descendants or ancestors until specified depth")    
     # add option for filtering by file path
     optparser.add_option(
         '-p', '--path', action="append",
@@ -3280,10 +3243,6 @@ def main():
         theme = themes[options.theme]
     except KeyError:
         optparser.error('invalid colormap \'%s\'' % options.theme)
-
-    # set skew on the theme now that it has been picked.
-    if options.theme_skew:
-        theme.skew = options.theme_skew
 
     totalMethod = options.totalMethod
 
