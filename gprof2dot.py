@@ -2991,7 +2991,7 @@ class Theme:
         return max(weight**2 * self.maxfontsize, self.minfontsize)
 
     def color(self, weight):
-        weight = int(min(max(weight, 0.0), 1.0) * 16);
+        weight = int(min(max(weight, 0.0), 1.0) * 15);
     
          
         return self.colormap[weight]
@@ -3330,7 +3330,7 @@ def main(argv=sys.argv[1:]):
     optparser.add_option(
         '-c', '--colormap',
         type="choice", choices=themeNames,
-        dest="theme", default="color",
+        dest="theme", default="custom",
         help="color map: %s [default: %%default]" % naturalJoin(themeNames))
     optparser.add_option(
         '-s', '--strip',
